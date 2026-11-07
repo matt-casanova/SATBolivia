@@ -1,15 +1,16 @@
-# Diff de integración — generado con git
-# 1) Archivos del ANFITRIÓN (FireHackaton) modificados respecto a la línea base 7eecc4f
+# Diff de integración (git). Base anfitrión: 7eecc4f · Copia literal de inundaciones: a4db5b6
+
+## 1) Archivos ORIGINALES del anfitrión (FireHackaton) que cambiaron
  .gitignore                                         |   3 +
- README.md => README-AlertSpot.md                   |   0
- app/build.gradle.kts                               |  16 ++
+ README-AlertSpot.md                                | 110 +++++++++++++++++++++
+ app/build.gradle.kts                               |  16 +++
  app/proguard-rules.pro                             |   3 +
  app/src/main/AndroidManifest.xml                   |   8 +-
- app/src/main/java/com/alertspot/MainActivity.kt    |  43 ++++-
- .../com/alertspot/ui/navigation/AppNavigation.kt   |  12 +-
- .../com/alertspot/ui/unified/GlobalModuleBar.kt    | 199 +++++++++++++++++++++
- .../java/com/alertspot/ui/unified/UnifiedRoot.kt   | 114 ++++++++++++
- 9 files changed, 388 insertions(+), 10 deletions(-)
+ app/src/main/java/com/alertspot/MainActivity.kt    |  43 ++++++--
+ .../com/alertspot/ui/navigation/AppNavigation.kt   |  12 ++-
+ 7 files changed, 185 insertions(+), 10 deletions(-)
+(README.md original renombrado a README-AlertSpot.md sin cambios; README.md es nuevo)
+
 diff --git a/.gitignore b/.gitignore
 index 749eea2..7b8c41d 100644
 --- a/.gitignore
@@ -223,7 +224,7 @@ index 98a5456..7ca1403 100644
      val currentRoute = navBackStackEntry?.destination?.route
  
 
-# 2) Archivos ORIGINALES de inundaciones modificados respecto a la copia literal a4db5b6
+## 2) Archivos ORIGINALES de inundaciones que cambiaron (respecto a la copia literal)
  app/src/main/java/com/reto01/flood/AlertNotifier.kt | 7 +++++--
  1 file changed, 5 insertions(+), 2 deletions(-)
 diff --git a/app/src/main/java/com/reto01/flood/AlertNotifier.kt b/app/src/main/java/com/reto01/flood/AlertNotifier.kt
@@ -260,3 +261,30 @@ index 822cb57..85f58a4 100644
          } catch (_: SecurityException) { /* permiso revocado */ }
      }
  }
+
+## 3) Archivos NUEVOS
+A	README-AlertSpot.md
+A	app/src/debug/res/xml/network_security_config.xml
+A	app/src/main/java/com/alertspot/ui/unified/GlobalModuleBar.kt
+A	app/src/main/java/com/alertspot/ui/unified/UnifiedRoot.kt
+A	app/src/main/java/com/reto01/flood/AlertNotifier.kt
+A	app/src/main/java/com/reto01/flood/BuildConfig.kt
+A	app/src/main/java/com/reto01/flood/FloodIntents.kt
+A	app/src/main/java/com/reto01/flood/FloodRoot.kt
+A	app/src/main/java/com/reto01/flood/data/ApiService.kt
+A	app/src/main/java/com/reto01/flood/data/FloodRepository.kt
+A	app/src/main/java/com/reto01/flood/data/Models.kt
+A	app/src/main/java/com/reto01/flood/data/Settings.kt
+A	app/src/main/java/com/reto01/flood/ui/FloodViewModel.kt
+A	app/src/main/java/com/reto01/flood/ui/Format.kt
+A	app/src/main/java/com/reto01/flood/ui/components/Components.kt
+A	app/src/main/java/com/reto01/flood/ui/screens/AlertsScreen.kt
+A	app/src/main/java/com/reto01/flood/ui/screens/HomeScreen.kt
+A	app/src/main/java/com/reto01/flood/ui/screens/SatelliteScreen.kt
+A	app/src/main/java/com/reto01/flood/ui/screens/SettingsScreen.kt
+A	app/src/main/java/com/reto01/flood/ui/theme/Theme.kt
+A	app/src/main/res/xml/network_security_config.xml
+A	docs/INTEGRACION.md
+A	docs/integracion.diff
+A	docs/verificacion/flood_contract.py
+A	docs/verificacion/static_check.py
