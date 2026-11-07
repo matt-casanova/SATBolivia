@@ -112,4 +112,13 @@ class FireRepository {
             Result.failure(e)
         }
     }
+
+    suspend fun getPhysicalNodes(): Result<List<com.alertspot.data.model.PhysicalNode>> {
+        return try {
+            val response = ApiClient.getApi().physical()
+            Result.success(response.nodes)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

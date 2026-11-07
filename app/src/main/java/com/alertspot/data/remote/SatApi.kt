@@ -24,6 +24,9 @@ interface SatApi {
     @GET("/api/v1/fires/history")
     suspend fun getHistory(@Query("node_id") nodeId: String): List<Any> // Adjust type if needed
 
+    @GET("/api/v1/fires/physical")
+    suspend fun physical(): com.alertspot.data.model.PhysicalResponse
+
     @GET("/api/v1/alerts")
     suspend fun getAlerts(): AlertsResponse
 

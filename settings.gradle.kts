@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AlertSpot"
+rootProject.name = "SATBolivia"
 include(":app")

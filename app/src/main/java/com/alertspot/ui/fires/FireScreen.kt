@@ -17,6 +17,7 @@ fun FireScreen(
     viewModel: FireViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val physicalUiState by viewModel.physicalUiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -24,7 +25,7 @@ fun FireScreen(
             TopAppBar(
                 title = { Text("SAT Bolivia — Incendios") },
                 actions = {
-                    IconButton(onClick = { viewModel.fetchOverview() }) {
+                    IconButton(onClick = { viewModel.refreshAll() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 }
@@ -43,13 +44,13 @@ fun FireScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(state.message, color = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { viewModel.fetchOverview() }) {
+                        Button(onClick = { viewModel.refreshAll() }) {
                             Text("Reintentar")
                         }
                     }
                 }
                 is FireUiState.Success -> {
-                    FireOverviewContent(state.overview, state.healthOk)
+                    FireOverviewContent(state.overview, state.healthOk, physicalUiState)
                 }
             }
         }
@@ -57,7 +58,7 @@ fun FireScreen(
 }
 
 @Composable
-fun FireOverviewContent(overview: FireOverview, healthOk: Boolean) {
+fun FireOverviewContent(overview: FireOverview, healthOk: Boolean, physicalUiState: PhysicalUiState) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -123,6 +124,99 @@ fun FireOverviewContent(overview: FireOverview, healthOk: Boolean) {
                 Badge(containerColor = MaterialTheme.colorScheme.error) {
                     Text("ERROR API REAL", modifier = Modifier.padding(8.dp))
                 }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        when (physicalUiState) {
+            is PhysicalUiState.Loading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            }
+            is PhysicalUiState.Empty -> {
+                Text(
+                    text = "No hay sensores físicos conectados",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            is PhysicalUiState.Error -> {
+                Text(
+                    text = "Error sensor: ${physicalUiState.message}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            is PhysicalUiState.Success -> {
+                val node = physicalUiState.nodes.firstOrNull { it.id == "I-01-PHYSICAL" } ?: physicalUiState.nodes.firstOrNull()
+                node?.let { PhysicalNodeCard(it) }
+            }
+            is PhysicalUiState.Stale -> {
+                val node = physicalUiState.nodes.firstOrNull { it.id == "I-01-PHYSICAL" } ?: physicalUiState.nodes.firstOrNull()
+                node?.let { PhysicalNodeCard(it, isStale = true) }
+            }
+        }
+    }
+}
+
+@Composable
+fun PhysicalNodeCard(node: com.alertspot.data.model.PhysicalNode, isStale: Boolean = false) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "SENSOR FÍSICO EXPERIMENTAL — ${node.id.replace("-PHYSICAL", "")}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            node.temperatureCEstimated?.let { temp ->
+                Text(
+                    text = "Temperatura estimada: $temp °C",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+            Text(
+                text = "Valor ADC: ${node.adcRaw}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Calidad: ${node.quality}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Calibración: ${if (node.calibrated) "Sí" else "No"}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Procedencia: ${node.sourceMode}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Actualizado: ${node.updatedAt}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            
+            if (isStale) {
+                Text(
+                    text = "(Desactualizado)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            
+            if (!node.calibrated) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Temperatura estimada — sensor no calibrado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
