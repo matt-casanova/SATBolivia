@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -21,9 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alertspot.service.LocationForegroundService
 import com.alertspot.ui.component.AlarmOverlay
-import com.alertspot.ui.navigation.AppNavigation
 import com.alertspot.ui.theme.AlertSpotTheme
+import com.alertspot.ui.unified.UnifiedRoot
 import com.alertspot.viewmodel.AlertViewModel
+import com.reto01.flood.FloodIntents
+import com.reto01.flood.startFloodPolling
+import com.reto01.flood.ui.FloodViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
 
@@ -32,6 +37,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private var alertViewModel: AlertViewModel? = null
+
+    // Módulo Inundaciones: mismo ViewModel con alcance de Activity y misma petición
+    // "abrir alertas" que tenía la MainActivity original de reto01-inundaciones.
+    private val floodViewModel: FloodViewModel by viewModels()
+    private val openFloodAlerts = MutableStateFlow(false)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -77,6 +87,11 @@ class MainActivity : ComponentActivity() {
         allowShowOnLockScreen()
         requestPermissions()
 
+        // Inundaciones: notificación → Inundaciones › Alertas, y refresco cada 5 s solo con la
+        // app visible (independiente del módulo en pantalla, como en la app original).
+        openFloodAlerts.value = FloodIntents.isOpenAlertsIntent(intent)
+        startFloodPolling(floodViewModel)
+
         setContent {
             val vm: AlertViewModel = viewModel()
             alertViewModel = vm
@@ -85,6 +100,7 @@ class MainActivity : ComponentActivity() {
             val isAlarmPlaying by vm.isAlarmPlaying.collectAsState()
             val alarmLocationName by vm.alarmLocationName.collectAsState()
             val locationSettingsIssue by vm.locationSettingsIssue.collectAsState()
+            val openFloodAlertsRequest by openFloodAlerts.collectAsState()
 
             // Ensure monitoring starts when Compose is ready
             // (handles case where permissions were already granted)
@@ -101,11 +117,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            AlertSpotTheme(darkTheme = isDarkMode) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AppNavigation(vm)
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Barra global Incendios | Inundaciones. El módulo Incendios sigue envuelto en
+                // AlertSpotTheme(isDarkMode) y renderiza AppNavigation(vm) como antes.
+                UnifiedRoot(
+                    alertViewModel = vm,
+                    isFireDarkMode = isDarkMode,
+                    floodViewModel = floodViewModel,
+                    openFloodAlertsRequest = openFloodAlertsRequest,
+                    onFloodAlertsRequestHandled = { openFloodAlerts.value = false },
+                    alarmVisible = isAlarmPlaying
+                )
 
-                    if (isAlarmPlaying) {
+                if (isAlarmPlaying) {
+                    AlertSpotTheme(darkTheme = isDarkMode) {
                         AlarmOverlay(
                             locationName = alarmLocationName ?: "",
                             onStop = { vm.stopAlarm() }
@@ -114,6 +139,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Notificación de inundaciones con la app ya abierta (SINGLE_TOP | CLEAR_TOP).
+        if (FloodIntents.isOpenAlertsIntent(intent)) openFloodAlerts.value = true
     }
 
     override fun onResume() {

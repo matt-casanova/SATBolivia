@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -66,9 +67,16 @@ data class BottomNavItem(
     val unselectedIcon: ImageVector
 )
 
+/**
+ * [navController] es opcional y por defecto se crea aquí, exactamente como antes.
+ * La app unificada lo pasa desde fuera (UnifiedRoot) para que la pila de navegación y los
+ * ViewModels de Incendios / Mapa / Alertas sobrevivan al cambiar al módulo Inundaciones.
+ */
 @Composable
-fun AppNavigation(viewModel: AlertViewModel) {
-    val navController = rememberNavController()
+fun AppNavigation(
+    viewModel: AlertViewModel,
+    navController: NavHostController = rememberNavController()
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 

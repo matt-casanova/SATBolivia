@@ -23,6 +23,14 @@ android {
         versionCode = 4
         versionName = "1.2.1"
 
+        // ── Módulo Inundaciones (Flask, puerto 5000) ─────────────────────────
+        // URL inicial del backend de inundaciones (solo primera ejecución: luego se
+        // cambia y persiste desde Inundaciones › Ajustes). Sobrescribible con
+        // FLOOD_BASE_URL=http://IP_LAN:5000/ en local.properties. No usar 10.0.2.2
+        // en teléfono físico. El backend de incendios se configura en
+        // com.alertspot.data.remote.ApiClient (sin cambios).
+        val floodBaseUrl = localProperties.getProperty("FLOOD_BASE_URL", "http://192.168.0.13:5000/")
+        buildConfigField("String", "FLOOD_BASE_URL", "\"$floodBaseUrl\"")
     }
 
     signingConfigs {
@@ -95,6 +103,14 @@ dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // ── Módulo Inundaciones (com.reto01.flood) ───────────────────────────────
+    // Versiones alineadas con las del anfitrión (lifecycle 2.8.3, coroutines 1.7.3 que ya
+    // llegan transitivamente). OkHttp logging-interceptor 4.12.0 es la versión con la que
+    // la app de inundaciones fue probada (FloodRepository crea su propio OkHttpClient).
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

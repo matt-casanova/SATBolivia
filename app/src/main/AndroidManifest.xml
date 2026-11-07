@@ -32,8 +32,11 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.AlertSpot">
+        <!-- HTTP sin cifrar: permitido solo en debug (src/debug/res/xml/network_security_config.xml)
+             hacia FastAPI :8000 y Flask :5000 en la LAN. En release solo HTTPS
+             (src/main/res/xml/network_security_config.xml). Sustituye a usesCleartextTraffic. -->
 
         <activity
             android:name=".MainActivity"
@@ -41,7 +44,8 @@
             android:hardwareAccelerated="true"
             android:theme="@style/Theme.AlertSpot"
             android:showOnLockScreen="true"
-            android:turnScreenOn="true">
+            android:turnScreenOn="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
