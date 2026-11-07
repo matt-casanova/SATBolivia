@@ -1,0 +1,262 @@
+# Diff de integración — generado con git
+# 1) Archivos del ANFITRIÓN (FireHackaton) modificados respecto a la línea base 7eecc4f
+ .gitignore                                         |   3 +
+ README.md => README-AlertSpot.md                   |   0
+ app/build.gradle.kts                               |  16 ++
+ app/proguard-rules.pro                             |   3 +
+ app/src/main/AndroidManifest.xml                   |   8 +-
+ app/src/main/java/com/alertspot/MainActivity.kt    |  43 ++++-
+ .../com/alertspot/ui/navigation/AppNavigation.kt   |  12 +-
+ .../com/alertspot/ui/unified/GlobalModuleBar.kt    | 199 +++++++++++++++++++++
+ .../java/com/alertspot/ui/unified/UnifiedRoot.kt   | 114 ++++++++++++
+ 9 files changed, 388 insertions(+), 10 deletions(-)
+diff --git a/.gitignore b/.gitignore
+index 749eea2..7b8c41d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -35,3 +35,6 @@ Thumbs.db
+ 
+ # Logs
+ *.log
++
++# Kotlin
++.kotlin/
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index f6cfa0f..8b32123 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -23,6 +23,14 @@ android {
+         versionCode = 4
+         versionName = "1.2.1"
+ 
++        // ── Módulo Inundaciones (Flask, puerto 5000) ─────────────────────────
++        // URL inicial del backend de inundaciones (solo primera ejecución: luego se
++        // cambia y persiste desde Inundaciones › Ajustes). Sobrescribible con
++        // FLOOD_BASE_URL=http://IP_LAN:5000/ en local.properties. No usar 10.0.2.2
++        // en teléfono físico. El backend de incendios se configura en
++        // com.alertspot.data.remote.ApiClient (sin cambios).
++        val floodBaseUrl = localProperties.getProperty("FLOOD_BASE_URL", "http://192.168.0.13:5000/")
++        buildConfigField("String", "FLOOD_BASE_URL", "\"$floodBaseUrl\"")
+     }
+ 
+     signingConfigs {
+@@ -96,6 +104,14 @@ dependencies {
+     implementation("androidx.core:core-ktx:1.13.1")
+     implementation("androidx.appcompat:appcompat:1.7.0")
+ 
++    // ── Módulo Inundaciones (com.reto01.flood) ───────────────────────────────
++    // Versiones alineadas con las del anfitrión (lifecycle 2.8.3, coroutines 1.7.3 que ya
++    // llegan transitivamente). OkHttp logging-interceptor 4.12.0 es la versión con la que
++    // la app de inundaciones fue probada (FloodRepository crea su propio OkHttpClient).
++    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
++    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
++    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
++
+     // Debug
+     debugImplementation("androidx.compose.ui:ui-tooling")
+ }
+diff --git a/app/proguard-rules.pro b/app/proguard-rules.pro
+index de67dd8..4a4e6c0 100644
+--- a/app/proguard-rules.pro
++++ b/app/proguard-rules.pro
+@@ -9,3 +9,6 @@
+ 
+ # Google Play Services Location
+ -keep class com.google.android.gms.location.** { *; }
++
++# Módulo Inundaciones: DTOs usados por Gson (regla original de reto01-inundaciones)
++-keep class com.reto01.flood.data.** { *; }
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index dc19130..364264a 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -32,8 +32,11 @@
+         android:label="@string/app_name"
+         android:roundIcon="@mipmap/ic_launcher_round"
+         android:supportsRtl="true"
+-        android:usesCleartextTraffic="true"
++        android:networkSecurityConfig="@xml/network_security_config"
+         android:theme="@style/Theme.AlertSpot">
++        <!-- HTTP sin cifrar: permitido solo en debug (src/debug/res/xml/network_security_config.xml)
++             hacia FastAPI :8000 y Flask :5000 en la LAN. En release solo HTTPS
++             (src/main/res/xml/network_security_config.xml). Sustituye a usesCleartextTraffic. -->
+ 
+         <activity
+             android:name=".MainActivity"
+@@ -41,7 +44,8 @@
+             android:hardwareAccelerated="true"
+             android:theme="@style/Theme.AlertSpot"
+             android:showOnLockScreen="true"
+-            android:turnScreenOn="true">
++            android:turnScreenOn="true"
++            android:windowSoftInputMode="adjustResize">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+diff --git a/app/src/main/java/com/alertspot/MainActivity.kt b/app/src/main/java/com/alertspot/MainActivity.kt
+index 27e77d5..f2e7418 100644
+--- a/app/src/main/java/com/alertspot/MainActivity.kt
++++ b/app/src/main/java/com/alertspot/MainActivity.kt
+@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
+ import androidx.activity.enableEdgeToEdge
+ import androidx.activity.result.IntentSenderRequest
+ import androidx.activity.result.contract.ActivityResultContracts
++import androidx.activity.viewModels
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.LaunchedEffect
+@@ -21,9 +22,13 @@ import androidx.compose.ui.Modifier
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.alertspot.service.LocationForegroundService
+ import com.alertspot.ui.component.AlarmOverlay
+-import com.alertspot.ui.navigation.AppNavigation
+ import com.alertspot.ui.theme.AlertSpotTheme
++import com.alertspot.ui.unified.UnifiedRoot
+ import com.alertspot.viewmodel.AlertViewModel
++import com.reto01.flood.FloodIntents
++import com.reto01.flood.startFloodPolling
++import com.reto01.flood.ui.FloodViewModel
++import kotlinx.coroutines.flow.MutableStateFlow
+ 
+ class MainActivity : ComponentActivity() {
+ 
+@@ -33,6 +38,11 @@ class MainActivity : ComponentActivity() {
+ 
+     private var alertViewModel: AlertViewModel? = null
+ 
++    // Módulo Inundaciones: mismo ViewModel con alcance de Activity y misma petición
++    // "abrir alertas" que tenía la MainActivity original de reto01-inundaciones.
++    private val floodViewModel: FloodViewModel by viewModels()
++    private val openFloodAlerts = MutableStateFlow(false)
++
+     private val locationPermissionLauncher = registerForActivityResult(
+         ActivityResultContracts.RequestMultiplePermissions()
+     ) { permissions ->
+@@ -77,6 +87,11 @@ class MainActivity : ComponentActivity() {
+         allowShowOnLockScreen()
+         requestPermissions()
+ 
++        // Inundaciones: notificación → Inundaciones › Alertas, y refresco cada 5 s solo con la
++        // app visible (independiente del módulo en pantalla, como en la app original).
++        openFloodAlerts.value = FloodIntents.isOpenAlertsIntent(intent)
++        startFloodPolling(floodViewModel)
++
+         setContent {
+             val vm: AlertViewModel = viewModel()
+             alertViewModel = vm
+@@ -85,6 +100,7 @@ class MainActivity : ComponentActivity() {
+             val isAlarmPlaying by vm.isAlarmPlaying.collectAsState()
+             val alarmLocationName by vm.alarmLocationName.collectAsState()
+             val locationSettingsIssue by vm.locationSettingsIssue.collectAsState()
++            val openFloodAlertsRequest by openFloodAlerts.collectAsState()
+ 
+             // Ensure monitoring starts when Compose is ready
+             // (handles case where permissions were already granted)
+@@ -101,11 +117,20 @@ class MainActivity : ComponentActivity() {
+                 }
+             }
+ 
+-            AlertSpotTheme(darkTheme = isDarkMode) {
+-                Box(modifier = Modifier.fillMaxSize()) {
+-                    AppNavigation(vm)
+-
+-                    if (isAlarmPlaying) {
++            Box(modifier = Modifier.fillMaxSize()) {
++                // Barra global Incendios | Inundaciones. El módulo Incendios sigue envuelto en
++                // AlertSpotTheme(isDarkMode) y renderiza AppNavigation(vm) como antes.
++                UnifiedRoot(
++                    alertViewModel = vm,
++                    isFireDarkMode = isDarkMode,
++                    floodViewModel = floodViewModel,
++                    openFloodAlertsRequest = openFloodAlertsRequest,
++                    onFloodAlertsRequestHandled = { openFloodAlerts.value = false },
++                    alarmVisible = isAlarmPlaying
++                )
++
++                if (isAlarmPlaying) {
++                    AlertSpotTheme(darkTheme = isDarkMode) {
+                         AlarmOverlay(
+                             locationName = alarmLocationName ?: "",
+                             onStop = { vm.stopAlarm() }
+@@ -116,6 +141,12 @@ class MainActivity : ComponentActivity() {
+         }
+     }
+ 
++    override fun onNewIntent(intent: Intent) {
++        super.onNewIntent(intent)
++        // Notificación de inundaciones con la app ya abierta (SINGLE_TOP | CLEAR_TOP).
++        if (FloodIntents.isOpenAlertsIntent(intent)) openFloodAlerts.value = true
++    }
++
+     override fun onResume() {
+         super.onResume()
+         // Re-start monitoring when app comes back to foreground
+diff --git a/app/src/main/java/com/alertspot/ui/navigation/AppNavigation.kt b/app/src/main/java/com/alertspot/ui/navigation/AppNavigation.kt
+index 98a5456..7ca1403 100644
+--- a/app/src/main/java/com/alertspot/ui/navigation/AppNavigation.kt
++++ b/app/src/main/java/com/alertspot/ui/navigation/AppNavigation.kt
+@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.sp
++import androidx.navigation.NavHostController
+ import androidx.navigation.NavType
+ import androidx.navigation.compose.*
+ import androidx.navigation.navArgument
+@@ -66,9 +67,16 @@ data class BottomNavItem(
+     val unselectedIcon: ImageVector
+ )
+ 
++/**
++ * [navController] es opcional y por defecto se crea aquí, exactamente como antes.
++ * La app unificada lo pasa desde fuera (UnifiedRoot) para que la pila de navegación y los
++ * ViewModels de Incendios / Mapa / Alertas sobrevivan al cambiar al módulo Inundaciones.
++ */
+ @Composable
+-fun AppNavigation(viewModel: AlertViewModel) {
+-    val navController = rememberNavController()
++fun AppNavigation(
++    viewModel: AlertViewModel,
++    navController: NavHostController = rememberNavController()
++) {
+     val navBackStackEntry by navController.currentBackStackEntryAsState()
+     val currentRoute = navBackStackEntry?.destination?.route
+ 
+
+# 2) Archivos ORIGINALES de inundaciones modificados respecto a la copia literal a4db5b6
+ app/src/main/java/com/reto01/flood/AlertNotifier.kt | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+diff --git a/app/src/main/java/com/reto01/flood/AlertNotifier.kt b/app/src/main/java/com/reto01/flood/AlertNotifier.kt
+index 822cb57..85f58a4 100644
+--- a/app/src/main/java/com/reto01/flood/AlertNotifier.kt
++++ b/app/src/main/java/com/reto01/flood/AlertNotifier.kt
+@@ -11,6 +11,7 @@ import android.os.Build
+ import androidx.core.app.NotificationCompat
+ import androidx.core.app.NotificationManagerCompat
+ import androidx.core.content.ContextCompat
++import com.alertspot.MainActivity
+ import com.reto01.flood.data.AlertDto
+ 
+ /**
+@@ -36,9 +37,11 @@ class AlertNotifier(private val context: Context) {
+             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+             != PackageManager.PERMISSION_GRANTED) return
+ 
++        // App unificada: abre la MainActivity anfitriona en Inundaciones › Alertas.
+         val intent = Intent(context, MainActivity::class.java).apply {
++            action = FloodIntents.ACTION_OPEN_ALERTS
+             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+-            putExtra(MainActivity.EXTRA_OPEN_ALERTS, true)
++            putExtra(FloodIntents.EXTRA_OPEN_ALERTS, true)
+         }
+         val pi = PendingIntent.getActivity(context, alert.id ?: 0, intent,
+             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+@@ -54,7 +57,7 @@ class AlertNotifier(private val context: Context) {
+             .setContentIntent(pi)
+             .build()
+         try {
+-            NotificationManagerCompat.from(context).notify(alert.id ?: 0, n)
++            NotificationManagerCompat.from(context).notify(FloodIntents.NOTIFICATION_TAG, alert.id ?: 0, n)
+         } catch (_: SecurityException) { /* permiso revocado */ }
+     }
+ }
