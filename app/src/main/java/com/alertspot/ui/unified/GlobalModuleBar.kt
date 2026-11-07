@@ -19,7 +19,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -65,36 +68,40 @@ fun GlobalModuleBar(
     val divider = if (darkTheme) Color.White.copy(alpha = 0.10f) else Color(0xFFE5E7EB)
     val inactive = if (darkTheme) Color.White.copy(alpha = 0.60f) else Color(0xFF6B7280)
 
-    Column(modifier.fillMaxWidth().background(container)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(60.dp)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ModuleTab(
-                module = SatModule.FIRES,
-                icon = FlameIcon,
-                selected = selected == SatModule.FIRES,
-                accent = if (darkTheme) FireAccentDark else FireAccent,
-                labelColor = if (darkTheme) FireAccentDark else FireLabel,
-                inactive = inactive,
-                onClick = { onSelect(SatModule.FIRES) },
-            )
-            ModuleTab(
-                module = SatModule.FLOODS,
-                icon = WaterDropIcon,
-                selected = selected == SatModule.FLOODS,
-                accent = FloodAccent,
-                labelColor = if (darkTheme) FloodLabelDark else FloodLabel,
-                inactive = inactive,
-                onClick = { onSelect(SatModule.FLOODS) },
-            )
+    // MaterialTheme neutro solo para que las pestañas tengan ripple (la barra vive fuera
+    // de AlertSpotTheme y de Reto01Theme); los colores visibles son los de arriba.
+    MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
+        Column(modifier.fillMaxWidth().background(container)) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .height(60.dp)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ModuleTab(
+                    module = SatModule.FIRES,
+                    icon = FlameIcon,
+                    selected = selected == SatModule.FIRES,
+                    accent = if (darkTheme) FireAccentDark else FireAccent,
+                    labelColor = if (darkTheme) FireAccentDark else FireLabel,
+                    inactive = inactive,
+                    onClick = { onSelect(SatModule.FIRES) },
+                )
+                ModuleTab(
+                    module = SatModule.FLOODS,
+                    icon = WaterDropIcon,
+                    selected = selected == SatModule.FLOODS,
+                    accent = FloodAccent,
+                    labelColor = if (darkTheme) FloodLabelDark else FloodLabel,
+                    inactive = inactive,
+                    onClick = { onSelect(SatModule.FLOODS) },
+                )
+            }
         }
     }
 }
