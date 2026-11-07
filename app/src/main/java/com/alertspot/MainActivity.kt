@@ -1,0 +1,158 @@
+package com.alertspot
+
+import android.Manifest
+import android.app.KeyguardManager
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.util.Log
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alertspot.service.LocationForegroundService
+import com.alertspot.ui.component.AlarmOverlay
+import com.alertspot.ui.navigation.AppNavigation
+import com.alertspot.ui.theme.AlertSpotTheme
+import com.alertspot.viewmodel.AlertViewModel
+
+class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
+    private var alertViewModel: AlertViewModel? = null
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        Log.d(TAG, "Location permission result: fineGranted=$fineGranted, coarseGranted=$coarseGranted")
+        if (fineGranted || coarseGranted) {
+            if (fineGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            startLocationService()
+            // Start monitoring now that we have permission
+            alertViewModel?.startMonitoring()
+        }
+    }
+
+    private val backgroundPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        Log.d(TAG, "Background location permission: granted=$granted")
+        // Re-start monitoring with background permission for geofences
+        if (granted) {
+            alertViewModel?.startMonitoring()
+        }
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* notification permission result */ }
+
+    private val locationSettingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        Log.d(TAG, "Location settings prompt result: ${result.resultCode}")
+        // Whether accepted or dismissed, re-check monitoring so it resumes if now enabled
+        alertViewModel?.startMonitoring()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        allowShowOnLockScreen()
+        requestPermissions()
+
+        setContent {
+            val vm: AlertViewModel = viewModel()
+            alertViewModel = vm
+
+            val isDarkMode by vm.isDarkMode.collectAsState()
+            val isAlarmPlaying by vm.isAlarmPlaying.collectAsState()
+            val alarmLocationName by vm.alarmLocationName.collectAsState()
+            val locationSettingsIssue by vm.locationSettingsIssue.collectAsState()
+
+            // Ensure monitoring starts when Compose is ready
+            // (handles case where permissions were already granted)
+            LaunchedEffect(Unit) {
+                Log.d(TAG, "LaunchedEffect: ensuring monitoring is started")
+                vm.startMonitoring()
+            }
+
+            // Prompt the system "turn on location" dialog when GPS is off
+            LaunchedEffect(locationSettingsIssue) {
+                locationSettingsIssue?.let { intentSender ->
+                    locationSettingsLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                    vm.onLocationSettingsPromptHandled()
+                }
+            }
+
+            AlertSpotTheme(darkTheme = isDarkMode) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AppNavigation(vm)
+
+                    if (isAlarmPlaying) {
+                        AlarmOverlay(
+                            locationName = alarmLocationName ?: "",
+                            onStop = { vm.stopAlarm() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-start monitoring when app comes back to foreground
+        alertViewModel?.startMonitoring()
+    }
+
+    private fun requestPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        locationPermissionLauncher.launch(permissions.toTypedArray())
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun startLocationService() {
+        val intent = Intent(this, LocationForegroundService::class.java)
+        startForegroundService(intent)
+    }
+
+    /** Let this Activity display over the lock screen when an alarm fires. */
+    @Suppress("DEPRECATION")
+    private fun allowShowOnLockScreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            val km = getSystemService(KeyguardManager::class.java)
+            km?.requestDismissKeyguard(this, null)
+        } else {
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+    }
+}
