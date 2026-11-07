@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.alertspot.MainActivity
 import com.reto01.flood.data.AlertDto
 
 /**
@@ -36,9 +37,11 @@ class AlertNotifier(private val context: Context) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED) return
 
+        // App unificada: abre la MainActivity anfitriona en Inundaciones › Alertas.
         val intent = Intent(context, MainActivity::class.java).apply {
+            action = FloodIntents.ACTION_OPEN_ALERTS
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(MainActivity.EXTRA_OPEN_ALERTS, true)
+            putExtra(FloodIntents.EXTRA_OPEN_ALERTS, true)
         }
         val pi = PendingIntent.getActivity(context, alert.id ?: 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -54,7 +57,7 @@ class AlertNotifier(private val context: Context) {
             .setContentIntent(pi)
             .build()
         try {
-            NotificationManagerCompat.from(context).notify(alert.id ?: 0, n)
+            NotificationManagerCompat.from(context).notify(FloodIntents.NOTIFICATION_TAG, alert.id ?: 0, n)
         } catch (_: SecurityException) { /* permiso revocado */ }
     }
 }
